@@ -1,0 +1,28 @@
+name: OnlineTimeStats
+main: com.onlinetimestats.OnlineTimeStats
+version: 1.0.0
+author: Proma
+description: 统计并显示玩家在线时长，适用于 1.8 ~ 1.12.2 的 Paper/Spigot 服务端
+api-version: "1.12"
+commands:
+  playtime:
+    description: 查看玩家在线时间
+    usage: /playtime [玩家|top|check|stats|set|add|reset|reload|help]
+    aliases:
+      - pt
+      - pts
+      - onlinetime
+      - onlinetimestats
+permissions:
+  onlinetimestats.use:
+    description: 查看自己的在线时间
+    default: true
+  onlinetimestats.others:
+    description: 查看其它玩家的在线时间
+    default: true
+  onlinetimestats.top:
+    description: 查看在线时长排行榜与全服概览
+    default: true
+  onlinetimestats.admin:
+    description: 管理权限：set / add / reset / reload
+    default: op

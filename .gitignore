@@ -1,0 +1,7 @@
+# 编译产物
+build/
+# 测试产物
+tests/out/
+tests/bot/node_modules/
+# 本地测试服务器（体积大，不入库）
+.testserver/
