@@ -1,7 +1,6 @@
 name: OnlineTimeStats
 main: com.onlinetimestats.OnlineTimeStats
 version: 1.0.0
-author: Proma
 description: 统计并显示玩家在线时长，适用于 1.8 ~ 1.12.2 的 Paper/Spigot 服务端
 api-version: "1.12"
 commands:
