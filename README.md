@@ -1,117 +1,122 @@
-# OnlineTimeStats —— 服务端玩家在线时长统计（1.8 ~ 1.12.2）
+# OnlineTimeStats — Player Online-Time Statistics for Paper/Spigot 1.8–1.12.2
 
-面向 **Paper / Spigot 1.8 ~ 1.12.2** 的服务端插件：按服务器 tick 累计每位玩家的在线时长，
-把时长显示在**玩家名字下方**与 **Tab 列表**，数据长期落盘，并提供查询、排行、离线查询与管理指令。
+[English](README.md) | [中文](README.zh-CN.md)
 
-- 计时以服务器 tick 为唯一真实来源：20 tick = 1 秒、60 秒 = 1 分钟、60 分钟 = 1 小时。
-- 时长同时写入记分板（名字下方 + Tab 列表）与纯文本数据文件，重启不丢。
-- 离线玩家可按名字查询，支持在线时长排行榜与全服概览。
-- 无第三方依赖，jar 内不打包任何外部库。
+A server-side plugin for **Paper / Spigot 1.8–1.12.2**: it accumulates each player's online time by
+server tick, displays it **below the player's name** and in the **tab list**, persists it to disk,
+and provides lookup, ranking, offline lookup and admin commands.
+
+- The server tick is the single source of truth for timing: 20 ticks = 1 second, 60 s = 1 minute, 60 min = 1 hour.
+- Time is written both to the scoreboard (below name + tab list) and to a plain-text data file, so it survives restarts.
+- Offline players can be looked up by name; an online-time leaderboard and a server-wide summary are included.
+- No third-party dependencies, and no external libraries are bundled into the jar.
 
 ---
 
-## 一、计时与显示模型
+## 1. Timing and display model
 
-插件的计时模型只有一条主线：**每个服务器 tick 给在线玩家的累计 tick 数 +1**，
-秒、分钟、小时都是显示时按 20 / 1200 / 72000 换算出来的结果。
+The plugin's timing model has exactly one spine: **every server tick adds 1 to the online player's
+accumulated tick count**. Seconds, minutes and hours are derived at display time by dividing by
+20 / 1200 / 72000.
 
-这样做的直接好处是不丢精度：如果把秒、分、时分别存成独立计数器，进位时的余数很容易被覆盖掉；
-只存总 tick 数则不会出现这类问题，总量始终准确。
+The practical benefit is that nothing is lost to rounding. If seconds, minutes and hours were kept as
+separate counters, the remainders would easily be overwritten on each carry; storing only the total
+tick count avoids that entirely and the total is always accurate.
 
-对应的记分板行为：
+The corresponding scoreboard behaviour:
 
-| 项目 | 说明 |
+| Item | Description |
 | --- | --- |
-| 主目标 | `objective` 配置项指定的目标名，默认 `playtime` |
-| 显示位置 | `display-slots`，默认 `below_name`（名字下方）+ `list`（Tab 列表） |
-| 分数单位 | `unit`，默认 `HOURS`（相当于总小时数）；可选 `MINUTES` / `SECONDS` |
-| 镜像目标 | 第二个显示位置自动使用数值完全一致的镜像目标（默认 `playtime_list`），原因见第七节 |
-| 额外目标 | 可选开启 `extra-objectives`，额外创建 `ots_tick` / `ots_seconds` / `ots_minutes` / `ots_hours` / `ots_total`，供命令方块或其它插件读取 |
-| 存档 | 服务器自身的记分板存档 + 插件自己的 `data/playtime.tsv` 双重保存 |
+| Main objective | The objective name from the `objective` setting, `playtime` by default |
+| Display slots | `display-slots`, by default `below_name` (below the player's name) + `list` (tab list) |
+| Score unit | `unit`, `HOURS` by default (i.e. total hours); `MINUTES` / `SECONDS` also available |
+| Mirror objective | The second display slot automatically uses a mirror objective with identical values (`playtime_list` by default); see section 7 for why |
+| Extra objectives | Optionally enable `extra-objectives` to also create `ots_tick` / `ots_seconds` / `ots_minutes` / `ots_hours` / `ots_total` for command blocks or other plugins |
+| Storage | Both the server's own scoreboard save and the plugin's own `data/playtime.tsv` |
 
 ---
 
-## 二、兼容性
+## 2. Compatibility
 
-| 项目 | 说明 |
+| Item | Description |
 | --- | --- |
-| 目标平台 | Paper / Spigot **1.8 ~ 1.12.2** |
-| 字节码 | Java 8（`--release 8`），只使用 1.8 起就存在的 Bukkit API |
-| 第三方依赖 | 无（不需要 Vault、PlaceholderAPI 等，jar 内也没有打包任何第三方库） |
-| 已实测 | Paper 1.12.2 + JRE 8：加载、计时、指令、记分板、挂机判定、落盘、重置全部通过 |
-| 1.13 及以上 | 未测试。插件没有用任何 1.13+ 专属 API，`plugin.yml` 声明了 `api-version: 1.12`，理论上可加载 |
+| Target platform | Paper / Spigot **1.8 – 1.12.2** |
+| Bytecode | Java 8 (`--release 8`); only Bukkit APIs that exist since 1.8 are used |
+| Third-party dependencies | None (no Vault, no PlaceholderAPI, and no third-party library is bundled in the jar) |
+| Verified on | Paper 1.12.2 + JRE 8: loading, timing, commands, scoreboard, AFK detection, persistence and reset all pass |
+| 1.13 and above | Not tested. The plugin uses no 1.13+-only API and declares `api-version: 1.12`, so it should load in theory |
 
 ---
 
-## 三、安装
+## 3. Installation
 
-1. 把 `dist/OnlineTimeStats-1.0.0.jar` 放进服务器的 `plugins/` 目录。
-2. 启动服务器，插件会生成 `plugins/OnlineTimeStats/config.yml`。
-3. 按需修改配置后执行 `/playtime reload`（改 `counting.mode` 等需要重启更稳妥）。
+1. Put `dist/OnlineTimeStats-1.0.0.jar` into your server's `plugins/` directory.
+2. Start the server; the plugin generates `plugins/OnlineTimeStats/config.yml`.
+3. Adjust the configuration and run `/playtime reload` (changing `counting.mode` and similar is safer with a restart).
 
 ---
 
-## 四、指令与权限
+## 4. Commands and permissions
 
-主指令 `/playtime`，别名 `/pt`、`/pts`、`/onlinetime`、`/onlinetimestats`。
+Main command `/playtime`, with aliases `/pt`, `/pts`, `/onlinetime`, `/onlinetimestats`.
 
-| 指令 | 说明 | 权限 |
+| Command | Description | Permission |
 | --- | --- | --- |
-| `/playtime` | 查看自己的总时长、本次在线、首次加入、排名 | `onlinetimestats.use`（默认所有人） |
-| `/playtime <玩家>` | 查看指定玩家，**支持离线玩家**（按名字索引查） | `onlinetimestats.others`（默认所有人） |
-| `/playtime top [数量]` | 在线时长排行榜（默认 10，最多 50） | `onlinetimestats.top`（默认所有人） |
-| `/playtime stats` | 全服概览：记录人数、累计时长、人均、最长 | `onlinetimestats.top` |
-| `/playtime check <玩家>` | 与 `/playtime <玩家>` 等价，便于脚本调用 | `onlinetimestats.others` |
-| `/playtime status` | 运行状态：计时模式、挂机开关、数据文件、记分板实际显示位置 | `onlinetimestats.admin`（默认 OP） |
-| `/playtime set <玩家> <时长>` | 直接设置总时长 | `onlinetimestats.admin` |
-| `/playtime add <玩家> <时长>` | 增加时长 | `onlinetimestats.admin` |
-| `/playtime reset <玩家\|all>` | 清除记录；`all` 需要再加 `confirm` | `onlinetimestats.admin` |
-| `/playtime reload` | 重载配置（含重建记分板、重启定时任务） | `onlinetimestats.admin` |
-| `/playtime help` | 指令帮助 | 所有人 |
+| `/playtime` | Your own total time, current session, first join and rank | `onlinetimestats.use` (everyone by default) |
+| `/playtime <player>` | A specific player, **including offline players** (looked up by name index) | `onlinetimestats.others` (everyone by default) |
+| `/playtime top [count]` | Online-time leaderboard (10 by default, 50 max) | `onlinetimestats.top` (everyone by default) |
+| `/playtime stats` | Server-wide summary: tracked players, accumulated time, average, longest | `onlinetimestats.top` |
+| `/playtime check <player>` | Equivalent to `/playtime <player>`, convenient for scripts | `onlinetimestats.others` |
+| `/playtime status` | Runtime status: counting mode, AFK switch, data file, actual scoreboard slots | `onlinetimestats.admin` (OP by default) |
+| `/playtime set <player> <duration>` | Set the total time directly | `onlinetimestats.admin` |
+| `/playtime add <player> <duration>` | Add to the total time | `onlinetimestats.admin` |
+| `/playtime reset <player\|all>` | Clear records; `all` also requires `confirm` | `onlinetimestats.admin` |
+| `/playtime reload` | Reload the configuration (rebuilds the scoreboard, restarts the timers) | `onlinetimestats.admin` |
+| `/playtime help` | Command help | Everyone |
 
-**时长写法**（`set` / `add` 用）：
-
-```
-2h30m        → 2 小时 30 分
-90m          → 90 分钟
-1d2h         → 1 天 2 小时
-2小时30分     → 中文单位同样识别
-3600         → 纯数字按「秒」处理
-```
-
-查询结果示例：
+**Duration syntax** (used by `set` / `add`):
 
 ```
-===== TestBot 的在线时间 =====
-总时长: 3小时12分钟45秒 (共 0 天 3 小时 12 分钟 / 45 秒)
-本次在线: 12分钟30秒
-首次加入: 2026-09-20 10:00:00
-最近加入: 2026-09-25 22:30:00
-最近退出: 2026-09-25 22:42:30
-登录次数: 12 次
-当前状态: 在线
-全服排名: #3 / 128
+2h30m        → 2 hours 30 minutes
+90m          → 90 minutes
+1d2h         → 1 day 2 hours
+2小时30分     → Chinese units are recognised as well
+3600         → a bare number is treated as seconds
+```
+
+Example lookup output:
+
+```
+===== TestBot's online time =====
+Total: 3h12m45s (0 days 3 hours 12 minutes / 45 seconds)
+Current session: 12m30s
+First join: 2026-09-20 10:00:00
+Last join: 2026-09-25 22:30:00
+Last quit: 2026-09-25 22:42:30
+Logins: 12
+Status: online
+Server rank: #3 / 128
 ```
 
 ---
 
-## 五、配置说明（`config.yml`）
+## 5. Configuration (`config.yml`)
 
 ```yaml
 counting:
-  mode: TICK            # TICK=每个服务器 tick 记 1；WALL=每真实秒记 20
+  mode: TICK            # TICK = 1 per server tick; WALL = 20 per real second
   count-on-shutdown: true
 
 storage:
-  file: data/playtime.tsv        # 数据文件，相对 plugins/OnlineTimeStats/
-  save-interval-seconds: 120     # 自动写盘间隔
-  save-on-quit: true             # 玩家退出时补一次写盘
+  file: data/playtime.tsv        # data file, relative to plugins/OnlineTimeStats/
+  save-interval-seconds: 120     # autosave interval
+  save-on-quit: true             # extra save when a player quits
 
-afk:                             # 可选挂机判定，默认关闭
+afk:                             # optional AFK detection, off by default
   enabled: false
-  threshold-seconds: 300         # 多少秒没有操作算挂机
-  exclude-from-total: true       # 挂机期间不计入总时长
-  notify: true                   # 进出挂机时提示玩家
+  threshold-seconds: 300         # idle seconds before a player counts as AFK
+  exclude-from-total: true       # do not count AFK time towards the total
+  notify: true                   # notify players on entering/leaving AFK
 
 scoreboard:
   enabled: true
@@ -120,172 +125,180 @@ scoreboard:
   unit: HOURS                    # HOURS / MINUTES / SECONDS
   display-slots: [below_name, list]
   update-seconds: 5
-  extra-objectives: false        # 是否额外创建 ots_tick / ots_seconds / ots_minutes / ots_hours / ots_total
+  extra-objectives: false        # also create ots_tick / ots_seconds / ots_minutes / ots_hours / ots_total
 
 options:
-  join-quit-message: false       # 进服时提示自己的累计时长
-  show-session: true             # 查询时显示“本次在线”
+  join-quit-message: false       # show your own accumulated time when you join
+  show-session: true             # include "current session" in lookups
 
-messages: …                      # 全部文案可改，支持 & 颜色代码与占位符
+messages: …                      # every message is configurable, & colour codes and placeholders supported
 ```
 
-要点：
+Notes:
 
-- `unit` 是**整数**记分板分数：默认按小时，`2h30m` 会显示成 `2`。要看到更细的数值就改成 `MINUTES` 或 `SECONDS`（同时把 `update-seconds` 调小到 1）。
-- `display-name`、`objective` 等以 `&` 开头的值**必须带引号**，否则 YAML 会把它当成锚点。
-- `messages` 里可用的占位符：`{player} {time} {days} {hours} {minutes} {seconds} {session} {afk} {first_join} {last_join} {last_quit} {sessions} {rank} {total_players} {online} {total_time} {total_hours} {average} {limit} {delta} {before} {input}`。
-- 配置缺项会退回内置默认值，所以用旧版 config.yml 覆盖新版本也不会启动失败。
-
----
-
-## 六、计入口径与写盘时机
-
-1. 玩家进入服务器时建立会话，之后**每个服务器 tick**给该玩家的总时长 +1（TICK 模式）。
-2. 时长以 tick 为唯一真实来源，秒/分/小时都是换算结果，不会出现进位丢秒的问题。
-3. 玩家退出、插件卸载、服务器关服都会立即写盘；此外每 `save-interval-seconds` 秒自动写一次。
-   服务器崩溃时最多丢一个写盘间隔的时长；把间隔调小只会增加写盘频率，不影响性能主线程（写盘在异步线程完成，主线程只做内存快照）。
-4. `WALL` 模式与 `TICK` 模式的差别：服务器掉帧（TPS < 20）时，TICK 模式会比真实时间少记，WALL 模式不会。
+- `unit` is an **integer** scoreboard score: with the default `HOURS`, `2h30m` is displayed as `2`. For finer values switch to `MINUTES` or `SECONDS` (and reduce `update-seconds` to 1).
+- Values starting with `&` such as `display-name` and `objective` **must be quoted**, otherwise YAML treats `&` as an anchor.
+- Available placeholders in `messages`: `{player} {time} {days} {hours} {minutes} {seconds} {session} {afk} {first_join} {last_join} {last_quit} {sessions} {rank} {total_players} {online} {total_time} {total_hours} {average} {limit} {delta} {before} {input}`.
+- Missing keys fall back to built-in defaults, so an older `config.yml` copied over a newer build will not break startup.
 
 ---
 
-## 七、记分板
+## 6. Counting semantics and when data is written
 
-- 默认在**主记分板**上创建 `playtime`（显示名 `[小时]`），挂在 `below_name`（名字下方）与 `list`（Tab 列表）。
-- ⚠️ **CraftBukkit/Spigot 的一个 API 限制**：`Objective#setDisplaySlot()` 会先把该目标从其它槽位清掉（1.12.2 的 `CraftObjective` 字节码里就有一个遍历 0..2 的清槽循环），也就是**一个目标只能占据一个显示位置**。
-  因此插件会把第一个位置留给配置的 `objective`，其余位置**自动创建数值完全一致的镜像目标**（默认 `playtime_list`）。玩家看到的显示效果与预期一致。
-  用 `/playtime status` 可以读回实际状态：
+1. A session starts when a player joins; from then on the player's total gains +1 **every server tick** (TICK mode).
+2. Ticks are the single source of truth; seconds/minutes/hours are derived, so no seconds are lost to carrying.
+3. Data is flushed immediately on quit, plugin disable and server shutdown, plus once every `save-interval-seconds`.
+   A server crash loses at most one save interval. Shortening the interval only increases write frequency and does not
+   affect the main thread's performance (writes happen on an async thread; the main thread only takes an in-memory snapshot).
+4. `WALL` versus `TICK`: when the server lags (TPS < 20), TICK under-counts compared to real time, WALL does not.
+
+---
+
+## 7. Scoreboard
+
+- By default the plugin creates `playtime` (display name `[小时]`) on the main scoreboard and shows it in `below_name` and `list`.
+- ⚠️ **A CraftBukkit/Spigot API limitation**: `Objective#setDisplaySlot()` first clears the objective from all other slots
+  (the 1.12.2 `CraftObjective` bytecode contains a loop clearing slots 0..2), which means **an objective can occupy only one display slot**.
+  The plugin therefore keeps the first slot for the configured `objective` and **automatically creates a mirror objective with identical values**
+  (`playtime_list` by default) for the remaining slots, so players see the expected result.
+  `/playtime status` reports the actual state:
 
   ```text
-  ===== 在线时间统计状态 =====
-  计时模式: TICK | 挂机判定: 关
-  记录玩家: 128 人 | 在线会话: 12 | 全服累计: 4210小时33分钟
-  数据文件: .../plugins/OnlineTimeStats/data/playtime.tsv
-  记分板: playtime (单位 HOURS, 显示名 [小时])
-  显示位置: below_name=playtime, list=playtime_list, sidebar=无
-  额外记分板目标: 关
+  ===== Online time statistics status =====
+  Counting mode: TICK | AFK detection: off
+  Tracked players: 128 | active sessions: 12 | server total: 4210h33m
+  Data file: .../plugins/OnlineTimeStats/data/playtime.tsv
+  Scoreboard: playtime (unit HOURS, display name [小时])
+  Display slots: below_name=playtime, list=playtime_list, sidebar=none
+  Extra scoreboard objectives: off
   ```
 
-- 离线玩家的分数不会实时刷新（只有在线玩家每次刷新时写入），但离线玩家的分数本来就看不见，重新进服会立即补上。
-- 若还需要细粒度的目标（供命令方块或其它插件读取），把 `extra-objectives` 打开：
-  会额外创建 `ots_tick`（tick%20）、`ots_seconds`（秒%60）、`ots_minutes`（分%60）、`ots_hours`（总小时）、`ots_total`（总分钟）。
-- 卸载插件时会主动放开自己占用的显示位置，不会留下一个显示着旧数值的死目标（其它插件的 sidebar 不受影响）。
+- Offline players' scores are not refreshed in real time (only online players are written on each refresh), but offline scores
+  are not visible anyway and are filled in as soon as the player rejoins.
+- If you also need the fine-grained objectives (for command blocks or other plugins), enable `extra-objectives`:
+  the plugin additionally creates `ots_tick` (tick%20), `ots_seconds` (second%60), `ots_minutes` (minute%60), `ots_hours` (total hours) and `ots_total` (total minutes).
+- On plugin disable it releases the display slots it occupies, so no dead objective keeps showing stale values (other plugins' sidebars are unaffected).
 
 ---
 
-## 八、数据文件
+## 8. Data file
 
-`plugins/OnlineTimeStats/data/playtime.tsv`，UTF-8、制表符分隔，一行一名玩家：
+`plugins/OnlineTimeStats/data/playtime.tsv`, UTF-8, tab-separated, one player per line:
 
 ```text
 # OnlineTimeStats data v1
 30fecbe1-2271-3418-8553-d3ded0e95f56	TestBot	216320	0	1790346612171	1790346612171	1790346720635	1
 ```
 
-| 列 | 含义 |
+| Column | Meaning |
 | --- | --- |
 | 1 | UUID |
-| 2 | 最后一次见到的玩家名 |
-| 3 | 累计在线 tick（÷20 = 秒） |
-| 4 | 挂机 tick（仅在开启挂机判定且不计入总时长时增长） |
-| 5 / 6 / 7 | 首次加入 / 最近加入 / 最近退出的时间戳（毫秒） |
-| 8 | 登录次数 |
+| 2 | Last seen player name |
+| 3 | Accumulated online ticks (÷20 = seconds) |
+| 4 | AFK ticks (only grows when AFK detection is enabled and AFK time is excluded from the total) |
+| 5 / 6 / 7 | First join / last join / last quit timestamps (milliseconds) |
+| 8 | Login count |
 
-- 选纯文本而不是 YAML，是为了让读写逻辑完全不依赖 Bukkit，从而能脱离服务器做单元测试，也方便你用脚本处理或备份（直接复制这一个文件即可）。
-- 写盘是**原子替换**：先写 `.tmp` 再改名，进程在写盘中途被杀不会留下半截文件。
-- 无法解析的行会被跳过，启动时在控制台提示跳过行数，不会因为一行坏数据导致整个文件读不进来。
+- Plain text rather than YAML keeps the read/write logic completely independent of Bukkit, which makes it unit-testable
+  outside a server and easy to process or back up with scripts (just copy the one file).
+- Writes are **atomic replacements**: a `.tmp` file is written and then renamed, so killing the process mid-write cannot
+  leave a half-written file.
+- Unparsable lines are skipped; the console reports how many lines were skipped at startup, so one bad line cannot prevent the file from loading.
 
 ---
 
-## 九、目录结构
+## 9. Directory layout
 
 ```text
 OnlineTimeStats/
-├── build.ps1                     # 编译 + 打包（只需 JDK 11 的 javac/jar）
+├── build.ps1                     # compile + package (only needs javac/jar from JDK 11)
 ├── dist/OnlineTimeStats-1.0.0.jar
-├── lib/                          # 仅编译用的 API jar，不会打进插件
+├── lib/                          # compile-time API jars, not bundled into the plugin
 │   ├── paper-api-1.12.2.jar
 │   └── bungeecord-chat.jar
-├── resources/                    # 打进 jar 的 plugin.yml 与 config.yml
+├── resources/                    # plugin.yml and config.yml packaged into the jar
 ├── src/com/onlinetimestats/
-│   ├── OnlineTimeStats.java      # 插件主类：任务调度、异步写盘、重载
-│   ├── PluginConfig.java         # 配置解析
-│   ├── Messages.java             # 文案与占位符
-│   ├── TimeTracker.java          # 计时核心：会话、tick 累加、挂机
-│   ├── ScoreboardService.java    # 记分板：目标、显示位置、镜像目标、自检
-│   ├── PlayerListener.java       # 加入/退出与“有效操作”事件
-│   ├── StatsCommand.java         # 指令与 Tab 补全
-│   └── core/                     # 不依赖 Bukkit，可离线测试
+│   ├── OnlineTimeStats.java      # main class: task scheduling, async saving, reload
+│   ├── PluginConfig.java         # configuration parsing
+│   ├── Messages.java             # messages and placeholders
+│   ├── TimeTracker.java          # timing core: sessions, tick accumulation, AFK
+│   ├── ScoreboardService.java    # scoreboard: objectives, slots, mirror objectives, self-check
+│   ├── PlayerListener.java       # join/quit and "meaningful activity" events
+│   ├── StatsCommand.java         # commands and tab completion
+│   └── core/                     # Bukkit-independent, testable offline
 │       ├── TimeEntry.java
 │       ├── TimeStore.java
 │       ├── SessionState.java
 │       └── TimeUtil.java
 └── tests/
-    ├── CoreTest.java             # 53 项断言：格式化、解析、读写、排行、计时、挂机
+    ├── CoreTest.java             # 53 assertions: formatting, parsing, I/O, ranking, timing, AFK
     ├── run-tests.ps1
     ├── run-smoke-test.ps1
-    └── bot/smoke-test.js         # 真机冒烟测试（启动 Paper 1.12.2 + 机器人进服）
+    └── bot/smoke-test.js         # real-server smoke test (starts Paper 1.12.2 + a bot joins)
 ```
 
 ---
 
-## 十、自己编译与测试
+## 10. Building and testing
 
 ```powershell
 cd OnlineTimeStats
-.\build.ps1              # 需要 JDK 11（--release 8）；产物在 dist/
+.\build.ps1              # requires JDK 11 (--release 8); output lands in dist/
 ```
 
 ```powershell
-# 1) 脱离服务器的核心逻辑测试（不需要服务器）
+# 1) Core logic tests, no server required
 cd tests
-.\run-tests.ps1          # 报告写在 tests/out/core-test-report.txt
+.\run-tests.ps1          # report is written to tests/out/core-test-report.txt
 ```
 
 ```powershell
-# 2) 真机冒烟测试：启动一个 Paper 1.12.2 测试服，用 mineflayer 机器人进服验证
-#    前置：node（会自动使用 tests/bot 下已安装的 mineflayer）、JRE 8、.testserver/1122/server.jar
+# 2) Real-server smoke test: starts a Paper 1.12.2 test server and joins with a mineflayer bot
+#    Requires: node (uses the mineflayer installed under tests/bot), JRE 8, .testserver/1122/server.jar
 cd tests
-.\run-smoke-test.ps1     # 报告写在 tests/out/smoke-report.txt
+.\run-smoke-test.ps1     # report is written to tests/out/smoke-report.txt
 ```
 
-冒烟测试实际覆盖的内容（2026-09-26 实测 38 项全通过）：
+What the smoke test actually covers (38 checks passed on 2026-09-26):
 
-- 插件被加载/启用、启动日志无异常、控制台可执行指令；
-- 机器人进服后时长按秒累计（在线 70 秒 → 1 分钟以上）、排行榜与 stats 正确；
-- `set 2h30m` 后主目标与镜像目标的分数都变成 `2`（小时）；
-- 玩家退出后仍可查询、可 `add 30m`（2h30m → 3 小时）、离线状态显示正确；
-- `playtime.tsv` 落盘内容与登录次数、首次加入时间正确；
-- `reload` 后记分板显示位置与在线玩家分数仍然正确；
-- 打开挂机判定（阈值 15 秒）后站着不动 60 秒，只累计 13 秒，挂机时长 41 秒（机器人位移 0.00 格）；
-- 打开 `extra-objectives` 后 `ots_tick / ots_seconds / ots_minutes / ots_hours / ots_total`
-  五个目标都被创建，并且在线玩家的分数确实写入了其中的四个；
-- `reset all confirm` 清空记录且数据文件同步清空；
-- 机器人收到的记分板网络包确认 `playtime` 挂在 `belowName`（位置 2）、`playtime_list` 挂在 Tab 列表（位置 0），**后来进服的玩家也能收到**。
+- the plugin is loaded/enabled, the startup log has no errors, and commands work from the console;
+- after the bot joins, time accumulates per second (70 s online → more than 1 minute), leaderboard and stats are correct;
+- after `set 2h30m`, both the main and the mirror objective show `2` (hours);
+- a quitted player can still be looked up and `add 30m` works (2h30m → 3 hours), offline status is reported correctly;
+- `playtime.tsv` on disk holds the correct login count and first-join time;
+- after `reload`, the scoreboard slots and the online players' scores are still correct;
+- with AFK detection on (15 s threshold), standing still for 60 s accumulates only 13 s, with 41 s recorded as AFK (the bot moved 0.00 blocks);
+- with `extra-objectives` on, all five objectives `ots_tick / ots_seconds / ots_minutes / ots_hours / ots_total`
+  are created and four of them actually receive scores for online players;
+- `reset all confirm` clears the records and the data file;
+- the scoreboard packets the bot receives confirm that `playtime` is on `belowName` (slot 2) and `playtime_list` is in the tab list (slot 0), **including for players who join later**.
 
-> 测试脚本会先把测试世界设成白天 + 和平 + 关闭刷怪。否则夜晚的怪物会把站着的机器人推来推去，
-> 那种情况下插件把机器人判为“有操作”是正确行为，会让挂机断言失去意义。
-
----
-
-## 十一、已知限制与可扩展方向
-
-- 只统计**累计总时长**，不含「每日/每周时长拆分」。需要的话可以基于现有事件模型加每日聚合。
-- 挂机判定默认关闭，依据「移动/聊天/指令/交互/丢弃物品/潜行」这些操作的时间戳；被水流推动、被怪物击退
-  也算「有操作」（实测中夜晚怪物推挤会让机器人一直被判定为活跃），对绝大多数场景够用，但不是精确的反挂机方案。
-- 记分板分数是整数，小时数会向下取整。
-- 未在 1.13+ 服务器上测试（目标平台是 1.8 ~ 1.12.2）。
-- 可选的后续扩展：PlaceholderAPI 占位符、每日时长与周报、MySQL/SQLite 存储、bStats 统计、`/playtime me` 之类的更细指令。
+> The test script first sets the test world to daytime + peaceful + no mob spawning. Otherwise night-time mobs push the
+> standing bot around, and the plugin correctly treats that as "activity", which would invalidate the AFK assertions.
 
 ---
 
-## 十二、许可
+## 11. Known limitations and possible extensions
 
-MIT License，见 `LICENSE`。相关的问题请提到本仓库的 Issues。
+- Only the **cumulative total** is tracked; there is no per-day or per-week breakdown. It could be added on top of the existing event model.
+- AFK detection is off by default and keys off the timestamps of "move/chat/command/interact/drop item/sneak" actions.
+  Being pushed by water or knocked back by a mob also counts as activity (in testing, night-time mobs kept the bot marked as active),
+  which is good enough for most situations but is not a precise anti-AFK measure.
+- Scoreboard scores are integers, so hours are truncated.
+- Not tested on 1.13+ servers (the target platform is 1.8–1.12.2).
+- Possible future extensions: PlaceholderAPI placeholders, daily and weekly statistics, MySQL/SQLite storage, bStats metrics,
+  finer subcommands such as `/playtime me`.
 
-## 十三、变更记录
+---
 
-### 1.0.0（2026-09-26）
+## 12. License
 
-- 首次发布：TICK/WALL 计时、持久化、记分板（belowName + Tab 列表）、查询/排行/统计/管理指令、挂机判定、`/playtime status` 自检。
-- 针对 CraftBukkit「一个目标只能占一个显示位置」的限制，用镜像目标实现了同时显示在两个位置。
-- 管理指令支持对「本插件尚未记录但服务器认识」的离线玩家补时长。
+MIT License, see `LICENSE`. Please report issues in this repository's Issues.
+
+## 13. Changelog
+
+### 1.0.0 (2026-09-26)
+
+- First release: TICK/WALL counting, persistence, scoreboard (belowName + tab list), lookup/ranking/stats/admin commands, AFK detection, `/playtime status` self-check.
+- Worked around CraftBukkit's "one objective can occupy one display slot" limitation by using mirror objectives to display the value in two places at once.
+- Admin commands can add time for offline players the server knows about but the plugin has not recorded yet.
